@@ -112,4 +112,16 @@ module S = struct
     val entry : t -> Label.t -> K.S.t
     val kg : t -> Inst_id.t -> K.t
   end
+
+  (* Data-flow problem explicitly for the cfg. *)
+  module type CfgKillGenInstProblem = sig
+    module K : KillGen
+
+    type t
+    val cfg : t -> Cfg.t
+
+    val empty : t -> Inst_id.t -> K.S.t
+    val entry : t -> Inst_id.t -> K.S.t
+    val kg : t -> Inst_id.t -> K.t
+  end
 end

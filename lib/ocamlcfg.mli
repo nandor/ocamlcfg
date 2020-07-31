@@ -121,8 +121,8 @@ module Analysis : sig
     val solve : P.t -> (P.S.t * P.S.t) P.Node.Map.t
   end
 
+  (** Functor to build a solver for a kill-gen problem. *)
   module Make_kill_gen_solver (P: KillGenProblem) : sig
-    (* Functor to build a solver for a kill-gen problem. *)
     val solve : P.t -> (P.K.S.t * P.K.S.t) P.Node.Map.t
   end
 
@@ -136,13 +136,29 @@ module Analysis : sig
     val kg : t -> Inst_id.t -> K.t
   end
 
+  module type CfgKillGenInstProblem = sig
+    module K : KillGen
+
+    type t
+    val cfg : t -> Cfg.t
+
+    val empty : t -> Inst_id.t -> K.S.t
+    val entry : t -> Inst_id.t -> K.S.t
+    val kg : t -> Inst_id.t -> K.t
+  end
+
+  (** Functor to build a forward solver on the cfg. *)
   module Make_forward_cfg_solver (P: CfgKillGenProblem) : sig
-    (* Functor to build a forward solver on the cfg. *)
     val solve : P.t -> (P.K.S.t * P.K.S.t) Inst_id.Map.t
   end
 
+  (** Functor to build a backward solver on the cfg. *)
   module Make_backward_cfg_solver (P: CfgKillGenProblem) : sig
-    (* Functor to build a backward solver on the cfg. *)
+    val solve : P.t -> (P.K.S.t * P.K.S.t) Inst_id.Map.t
+  end
+
+  (** Functor to build a backward solver on the cfg. *)
+  module Make_backward_cfg_inst_solver (P: CfgKillGenInstProblem) : sig
     val solve : P.t -> (P.K.S.t * P.K.S.t) Inst_id.Map.t
   end
 end

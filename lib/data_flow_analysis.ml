@@ -204,3 +204,76 @@ module Make_backward_cfg_solver (P: CfgKillGenProblem) = struct
 
   let solve = let module M = Make_kill_gen_solver(T) in M.solve
 end
+
+module Make_backward_cfg_inst_solver (P: CfgKillGenInstProblem) = struct
+  module T = struct
+    module S = P.K.S
+    module Node = Inst_id
+
+    type t = { pt: P.t; cfg: Cfg.t; kg: P.K.t Inst_id.Map.t }
+
+    let entries { cfg; _ } =
+      cfg
+      |> Cfg.exit_labels
+      |> Label.Set.elements
+      |> List.map (fun l -> Inst_id.Term l)
+
+    let prev_blocks cfg block =
+      Cfg.get_block_exn cfg block
+      |> Cfg.predecessor_labels
+      |> List.map (fun l -> Inst_id.Term l)
+
+    let next { cfg; _}  = function
+      | Node.Term block ->
+        let bb = Cfg.get_block_exn cfg block in
+        (match bb.body with
+        | [] -> prev_blocks cfg block
+        | insts ->
+          [Node.Inst (block, List.length insts - 1)])
+      | Node.Inst (block, 0) ->
+        prev_blocks cfg block
+      | Node.Inst (block, n) ->
+        [Node.Inst (block, n - 1)]
+
+    let prev { cfg; _ } = function
+      | Node.Inst (block, n) ->
+        let bb = Cfg.get_block_exn cfg block in
+        if List.length bb.body = n + 1
+          then [Inst_id.Term block]
+          else [Inst_id.Inst(block, n + 1)]
+      | Node.Term block ->
+        Cfg.get_block_exn cfg block
+        |> Cfg.successor_labels cfg ~normal:true ~exn:true
+        |> Label.Set.elements
+        |> List.map (fun succ ->
+          let bb = Cfg.get_block_exn cfg succ in
+          match bb.body with
+          | [] -> Inst_id.Term succ
+          | _ -> Inst_id.Inst(succ, 0))
+
+    let empty { pt; _ } = P.empty pt
+    let entry { pt; _ } = P.entry pt
+
+    let f { kg; _ } node s =
+      P.K.f s (Inst_id.Map.find node kg)
+  end
+
+  let solve pt =
+    let cfg = P.cfg pt in
+    let kg = List.fold_left
+      (fun acc bb ->
+        let term = Inst_id.Term bb.Cfg.start in
+        let acc = Inst_id.Map.add term (P.kg pt term) acc in
+        let rec iter acc = function
+          | n when n = List.length bb.Cfg.body -> acc
+          | n ->
+            let node = Inst_id.Inst(bb.Cfg.start, n) in
+            iter (Inst_id.Map.add node (P.kg pt node) acc) (n + 1)
+        in
+        iter acc 0)
+      Inst_id.Map.empty
+      (Cfg.blocks cfg)
+    in
+    let module M = Make_solver(T) in
+    M.solve { pt; cfg; kg}
+end
